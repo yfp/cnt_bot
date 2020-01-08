@@ -26,7 +26,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                      level=logging.INFO)
 action_dict = {
   'start': action.start,
+  'help': action.help,
   'team': action.team,
+  'name': action.name,
+  'stat': action.stat,
   'make': action.make,
   'guess': action.guess
 }

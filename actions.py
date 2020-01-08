@@ -17,8 +17,22 @@ def start(update, context):
     text="Hi! I'm Codenames training bot. " +
       "First, you need to setup a team. " + 
       "Players can only interact with the players from the same team. "+
-      "Type `/team [name_of_your_team]` to start",
+      "Type `/team [team_name]` to start. " +
+      "You can always type `/help` for the list of commands",
     reply_markup=config.keyboard.empty,
+    parse_mode='Markdown')
+
+def help(update, context):
+  context.bot.send_message(
+    chat_id=update.effective_chat.id,
+    text="`/team [team_name]` sets up the team you are going to play in. " + 
+      "Players can only interact with the players from the same team.\n"+
+      "`/name [your_name]` sets up your name in the game.\n" +
+      "`/make` allows you to create an association.\n" +
+      "`/guess` allows you to guess others association.\n" +
+      "`/stat` outputs statistics.\n" +
+      "`/help` outputs this message",
+    reply_markup=config.keyboard.action,
     parse_mode='Markdown')
 
 def get_user_name(update):
@@ -29,6 +43,8 @@ def get_user_name(update):
 
 def team(update, context):
   teamname = " ".join(context.args)
+  if teamname == "":
+    teamname = "People who forget arguments"
   user_id = update.effective_user.id
   user_name = get_user_name(update)
   db = sqlite3.connect(config.db)
@@ -43,7 +59,7 @@ def team(update, context):
     res = sum(1 for row in db.execute("select id from users where id=:id", query_pars))
     if res:
       db.execute("""update users
-          set team=:team, name=:name, chat_id=:chat_id
+          set team=:team, chat_id=:chat_id
           where id=:id""", query_pars)
     else:
       db.execute("""insert into users(id, name, team, chat_id)
@@ -53,6 +69,35 @@ def team(update, context):
     text=f"Well done! You are in the team “{teamname}” now. "+
     "Input `/make` to create associations for your team or "+
     "`/guess` to guess associations from other people.",
+    reply_markup=config.keyboard.action,
+    parse_mode='Markdown')
+
+def name(update, context):
+  user_name = " ".join(context.args)
+  user_id = update.effective_user.id
+  # user_name = get_user_name(update)
+  if user_name == "":
+    user_name = f"Person{np.random.randint(1000)}"
+  teamname = "Default team"
+  db = sqlite3.connect(config.db)
+  query_pars = {
+    "id": user_id,
+    "name": user_name,
+    "team": teamname,
+    "chat_id": update.effective_chat.id
+  }
+  print(f"User {user_name} changed the name")
+  with db:
+    res = sum(1 for row in db.execute("select id from users where id=:id", query_pars))
+    if res:
+      db.execute("""update users
+          set name=:name where id=:id""", query_pars)
+    else:
+      db.execute("""insert into users(id, name, team, chat_id)
+        values(:id, :name, :team, :chat_id)""", query_pars)
+  db.close()
+  context.bot.send_message(chat_id=update.effective_chat.id,
+    text=f"Your name is {user_name} now.",
     reply_markup=config.keyboard.action,
     parse_mode='Markdown')
 
@@ -208,5 +253,47 @@ def guess_answer(update, context):
     chat_id=update.effective_chat.id,
     text=message, reply_markup=reply_markup)
 
+def stat(update, context):
+  user_id = update.effective_user.id
+  guessed = {}
+  questioned = {}
+  names = {}
+  db = sqlite3.connect(config.db)
+  with db:
+    for row in db.execute("""
+      select gid, qid, u1.name, u2.name, res, out from (
+        select g.user_id as gid, q.user_id as qid, SUM(g.result) as res, SUM(g.out_of) as out
+        from guesses as g
+        left join questions as q on g.question_id = q.id
+        where g.user_id = :user_id or q.user_id = :user_id
+        group by g.user_id, q.user_id
+      )
+      left join users as u1 on gid == u1.id
+      left join users as u2 on qid == u2.id
+      """, {"user_id": user_id}):
+      gid, qid, gname, qname, res, out = row
+      if gid == user_id:
+        guessed[qid] = (res, out)
+        names[qid] = qname
+      elif qid == user_id:
+        questioned[gid] = (res, out)
+        names[gid] = gname
+  db.close()
 
+  uids = sorted(list(set(guessed.keys()) | set(questioned.keys())))
+  lines = []
+  for uid in uids:
+    if uid in guessed:
+      tup = guessed[uid]
+      tup = (names[uid],) + tup + (int(100*tup[0]/tup[1]),)
+      lines.append("You understood {} {}/{} ({}%)".format(*tup))
+    if uid in questioned:
+      tup = questioned[uid]
+      tup = (names[uid],) + tup + (int(100*tup[0]/tup[1]),)
+      lines.append("{} understood you {}/{} ({}%)".format(*tup))
+
+  context.bot.send_message(chat_id=update.effective_chat.id,
+    text="\n".join(lines),
+    reply_markup=config.keyboard.action,
+    parse_mode='Markdown')
 
