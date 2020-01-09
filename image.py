@@ -7,7 +7,7 @@ TILE_WIDTH = 256
 def concat_tile(im_list_2d):
     return cv2.vconcat([cv2.hconcat(im_list_h) for im_list_h in im_list_2d])
 
-def random_tiling(tiles_shape=(3,2), num_of_selected=2):
+def random_tiling(tiles_shape, num_of_selected):
   size = tiles_shape[0]*tiles_shape[1]
   tile_ids = np.random.choice(TILES_TOTAL, size, replace=False)
   selected = np.random.choice(size, num_of_selected, replace=False)
@@ -36,7 +36,7 @@ def make_imagename(tile_ids, selected):
   img_code = repr_tile_ids_selected(tile_ids, selected)
   return f"cache/m{img_code}.png"
 
-def generate_image(tile_ids, selected=None):
+def generate_image(tile_ids, shape, selected=None):
   if selected is None:
     selected = tuple()
 
@@ -50,7 +50,7 @@ def generate_image(tile_ids, selected=None):
   for i in selected:
       cv2.rectangle(tiles[i], (p1,p1), (p2,p2),
         color=(0,255,0), thickness=3)
-  tiles = np.array(tiles).reshape(3,2,TILE_WIDTH,TILE_WIDTH,-1)
+  tiles = np.array(tiles).reshape(*shape,TILE_WIDTH,TILE_WIDTH,-1)
   image = concat_tile(tiles)
   if len(selected):
     fname = make_imagename(tile_ids, selected)
@@ -60,6 +60,7 @@ def generate_image(tile_ids, selected=None):
   return fname
 
 if __name__ == '__main__':
-  tile_ids, selected = random_tiling()
-  generate_image(tile_ids, selected)
-  generate_image(tile_ids)
+  shape = (4,3)
+  tile_ids, selected = random_tiling((4,3), 4)
+  generate_image(tile_ids, shape, selected)
+  generate_image(tile_ids, shape)

@@ -2,6 +2,7 @@ import sqlite3
 import image
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
 from os.path import exists as pathexists
+from imset import get_imset
 
 config = {}
 def use_config(_config):
@@ -102,10 +103,9 @@ def name(update, context):
     parse_mode='Markdown')
 
 def make(update, context):
-  shape = (config.image.rows, config.image.cols)
-  nos = config.image.num_of_selected
-  tile_ids, selected = image.random_tiling(shape, nos)
-  fname = image.generate_image(tile_ids, selected)
+  imset = get_imset(" ".join(context.args))
+  tile_ids, selected = image.random_tiling(imset.shape, imset.nos)
+  fname = image.generate_image(tile_ids, imset.shape, selected)
   context.chat_data['make'] = {
     'img_code': image.repr_tile_ids_selected(tile_ids, selected)
   }
@@ -162,18 +162,22 @@ def propose_image_to_guess(user_id):
   return row
 
 def guess(update, context):
-  # (4, 123, '208-29-25-267-79-185__0-2', 'fokkacho', 'Георгий')
   quest = propose_image_to_guess(update.effective_user.id)
   if not quest:
-    context.bot.send_message(chat_id=update.effective_chat.id,
+    return context.bot.send_message(chat_id=update.effective_chat.id,
       text=f"Sorry, no images for you to guess", reply_markup=config.keyboard.action)
-    return
+    
   qid, _, img_code, association, user_name = quest
   tile_ids, gt = image.from_repr(img_code)
+  imset_name = f"{len(gt)}/{len(tile_ids)}"
+  imset = get_imset(imset_name)
+  if imset.shape[0]*imset.shape[1] != len(tile_ids):
+    return context.bot.send_message(chat_id=update.effective_chat.id,
+      text=f"Something went wrong", reply_markup=config.keyboard.action) 
   
   fname = image.guess_imagename(tile_ids)
   if not pathexists(fname):
-    fname = image.generate_image(tile_ids)
+    fname = image.generate_image(tile_ids, imset.shape)
   context.chat_data['guess'] = {
     'qid': qid,
     'tile_ids': img_code,
@@ -182,11 +186,12 @@ def guess(update, context):
   }
 
   caption = f"{user_name} says “{association} {len(gt)}”"
+  keyboard = config.keyboard.get(imset_name, config.keyboard.empty)
   context.bot.send_photo(
     chat_id=update.effective_chat.id,
     photo=open(fname, 'rb'),
     caption=caption,
-    reply_markup=config.keyboard.guess)
+    reply_markup=keyboard)
 
 def save_guess(uid, qid, guess, res_tup):
   db = sqlite3.connect(config.db)

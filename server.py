@@ -3,20 +3,20 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
 import logging
 import yaml
 import actions as action
+from imset import load_imsets
 from objectdict import ObjectDict
 
 no_keyboard = ReplyKeyboardRemove()
 action_keyboard = ReplyKeyboardMarkup([['/make', '/guess']], resize_keyboard=True)
-guess_keyboard = ReplyKeyboardMarkup([['1', '2'],['3', '4'],['5', '6']], resize_keyboard=True)
 
 with open('config.yaml') as f:
   config = yaml.load(f, Loader=yaml.FullLoader)
   config['keyboard'] = {
     'action': action_keyboard,
-    'guess' : guess_keyboard,
     'empty': no_keyboard
   }
   config = ObjectDict(config)
+  load_imsets(config)
 action.use_config(config)
 
 updater = Updater(token=config.token, use_context=True)
