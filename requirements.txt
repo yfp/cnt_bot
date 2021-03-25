@@ -6,6 +6,6 @@ numpy==1.18.1
 opencv-python-headless==4.1.2.30
 pycparser==2.19
 python-telegram-bot==12.2.0
-PyYAML==5.3
+PyYAML==5.4
 six==1.13.0
 tornado==6.0.3
